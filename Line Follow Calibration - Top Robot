@@ -1,0 +1,22 @@
+#include <kipr/wombat.h>
+
+int main()
+{
+    while(push_button() != 1){
+    printf("\nCalibration of Left Sensor(0): %d" , analog(0));
+        msleep(500);
+    }
+    int leftFactor = analog(0);
+    printf("\nSaved Left Sensor calibration: %d" , leftFactor);
+    msleep(2000);
+    
+    while(push_button() != 1){
+        printf("\nCalibration of Right Sensor(1): %d" , analog(1));
+        msleep(500);
+    }
+    int rightFactor = analog(1);
+    printf("\nSaved Right Sensor Calibration: %d" , rightFactor);
+    msleep(1000);
+    printf("\n Left Calibration: %d Right Calibration: %d\n" , leftFactor,  rightFactor);
+    return 0;
+}
