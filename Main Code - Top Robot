@@ -1,0 +1,53 @@
+#include <kipr/wombat.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define lm 0
+#define rm 1
+#define lc 0
+#define rc 1
+#define claw 0
+#define arm 1
+
+#define lb 3098
+#define rb 3319
+
+void serbo(int port, int position, int speed) {
+    enable_servos(); 
+    int servo_position = get_servo_position(port);
+
+    while (servo_position != position) {
+        if (servo_position > position) servo_position--;
+        else servo_position++;
+
+        set_servo_position(port, servo_position);
+        msleep(speed);
+    }
+}
+
+void line_follow(int distance, int speed, float factor, int blackL, int blackR) {
+    int e = 0;
+
+    cmpc(lm);
+    while (labs(gmpc(lm)) < distance) {
+        int errL = analog(lc) - blackL;
+        int errR = analog(rc) - blackR;
+
+        int error = errL - errR;      
+        e = (7*e + error) / 8;        
+
+        int turn = (int)(e * factor);
+
+        mav(lm, -(speed - turn));
+        mav(rm, speed + turn);
+
+        msleep(10);
+    }
+    ao();
+}
+
+int main() {
+    enable_servos();
+    disable_servos();
+    return 0;
+}
