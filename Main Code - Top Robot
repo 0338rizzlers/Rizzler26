@@ -2,16 +2,54 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define lm 0
-#define rm 1
+#define left 0
+#define right 1
 #define lc 0
 #define rc 1
 #define claw 0
 #define arm 1
+#define max 1000
 
 #define lb 3098
 #define rb 3319
 
+
+//mrp usage: (motor port, speed, distance)
+//mrp uses gmpc but relative to current
+
+
+        
+     
+        
+        
+void mv(int speed, int distance){
+    mrp(left, speed, distance);
+    mrp(right, speed, distance);
+}
+
+void mvt(int speed, double dur){
+    mav(left, speed);
+    mav(right, speed);
+    msleep(dur);
+    ao();
+}
+
+void turn(int dir, int speed, double dur){
+    if(dir){
+        mav(left, speed);
+        mav(right, -speed);
+    }
+    else{
+        mav(left, -speed);
+        mav(right, speed);
+    }
+    msleep(dur*1000);
+    freeze(left);
+    freeze(right);
+}
+        
+        
+        
 void serbo(int port, int position, int speed) {
     enable_servos(); 
     int servo_position = get_servo_position(port);
@@ -25,11 +63,13 @@ void serbo(int port, int position, int speed) {
     }
 }
 
+
+
 void line_follow(int distance, int speed, float factor, int blackL, int blackR) {
     int e = 0;
 
-    cmpc(lm);
-    while (labs(gmpc(lm)) < distance) {
+    cmpc(left);
+    while (labs(gmpc(left)) < distance) {
         int errL = analog(lc) - blackL;
         int errR = analog(rc) - blackR;
 
@@ -38,8 +78,8 @@ void line_follow(int distance, int speed, float factor, int blackL, int blackR) 
 
         int turn = (int)(e * factor);
 
-        mav(lm, -(speed - turn));
-        mav(rm, speed + turn);
+        mav(left, -(speed - turn));
+        mav(right, speed + turn);
 
         msleep(10);
     }
@@ -48,6 +88,10 @@ void line_follow(int distance, int speed, float factor, int blackL, int blackR) 
 
 int main() {
     enable_servos();
+    
+    mvt(max, 2000);
+    turn(right, max, 1);
+    
     disable_servos();
     return 0;
 }
