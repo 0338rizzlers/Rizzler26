@@ -733,7 +733,7 @@ int main()
     msleep(100);
     mav(2,1500);
     msleep(750);
-    //pick up botnigga
+    //pick up bot
     
     */
     
