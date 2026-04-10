@@ -2,62 +2,47 @@
 #include <stdlib.h>
 
 // MOTORS
-#define LEFT_MOTOR 0
-#define RIGHT_MOTOR 1
+#define left 1
+#define right 3
+#define vmax 1500
 // SERVO SETTINGS
-#define ARM_SERVO 0
+#define arm 2 //Arm is a motor, keep this in mind
+#define lclaw 0
+#define rclaw 3
+#define rear 0//this is also a motor(positive dir opens, neg closes)
 
-// CLAW
-#define POM_ClAW 2
-#define POM_ARM 3
+#define arm_down_val 1750
+#define arm_up_val 450
+#define arm_above_ground_val 320
 
-// ARM ENCODER CONSTANTS (tune this value by testing)
-#define TICKS_PER_DEGREE_ARM 46
-#define ARM_MAX_DOWN 1943
-#define ARM_MAX_UP 600
+#define claw_open_val 1006
+#define claw_close_val 1369
 
-// SERVO PORTS
-#define CLAW_SERVO 1
-#define SPINNER_SERVO 2
-
-// CLAW POSITIONS (tune these values to match your claw)
-#define CLAW_OPEN 0
-#define CLAW_CLOSED 2000
-
-// SPINNER POSITIONS (tune these values)
-#define SPINNER_REST 0
-#define SPINNER_EXTENDED 1000
+#define rear_open 300
+#define rear_close -300
 
 #define SERVO_STEP 10
-#define SERVO_DELAY 15
+#define fast 5
+#define std 15
+#define slow 20
+
+#define arm_fast 1500
+#define arm_std 400
+#define arm_slow 300
 // SENSORS
-#define LEFT_SENSOR 5
-#define RIGHT_SENSOR 1
+#define lc 3
+#define rc 2
 
 // CONSTANTS
-#define BASE_SPEED 1400
+#define BASE_SPEED 800
+#define LINE 1000
 
-#define LINE 3000
+#define TICKS_PER_INCH 219
+#define TICKS_PER_DEGREE 12.1
 
-#define TICKS_PER_INCH 212
-#define TICKS_PER_DEGREE 10.88
 
-// INITIALIZE SERVO
-void initialize_servos()
-{
-    enable_servos();
-    int pos = get_servo_position(0);
-
-    while(pos > 900)
-    {
-        pos -= 1;
-        set_servo_position(0, pos);
-        msleep(10);
-    }
-    msleep(500);
-}
 // UNIVERSAL SERVO
-void move_servo_slow(int port, int target)
+void serbo(int port, int target, int SERVO_DELAY)
 {
     int pos = get_servo_position(port);
 
@@ -83,666 +68,288 @@ void move_servo_slow(int port, int target)
     set_servo_position(port, target);
     msleep(200);
 }
-// LOWER ARM
-void lower_arm(int position)
-{
-    move_servo_slow(ARM_SERVO, position);
-}
-// RAISE ARM
-void raise_arm(int position)
-{
-    move_servo_slow(ARM_SERVO, position);
-}
+
 // DRIVE STRAIGHT WITH ENCODERS
-void driveStraight(double inches, double direction)
-{
+void driveStraight(double inches, double direction){
     double target = inches * TICKS_PER_INCH;
 
-    cmpc(LEFT_MOTOR);
-    cmpc(RIGHT_MOTOR);
+    cmpc(left);
+    cmpc(right);
 
-    while(abs(get_motor_position_counter(LEFT_MOTOR)) < target ||
-          abs(get_motor_position_counter(RIGHT_MOTOR)) < target)
+    while(abs(get_motor_position_counter(left)) < target ||
+          abs(gmpc(right)) < target)
     {
-        mav(LEFT_MOTOR, direction * BASE_SPEED);
-        mav(RIGHT_MOTOR, direction * BASE_SPEED);
+        mav(left, direction * BASE_SPEED);
+        mav(right, direction * BASE_SPEED);
 
         msleep(10);
     }
 
-    freeze(LEFT_MOTOR);
-    freeze(RIGHT_MOTOR);
+    freeze(left);
+    freeze(right);
 }
 
+void driveTime(double speed, double duration){
+    mav(left, speed);
+    mav(right, speed);
+    msleep(duration);
+    freeze(left);
+    freeze(right);
+}
 
 // TURN WITH ENCODERS
-void turnDegrees(double degrees)
-{
+void turnDegrees(double degrees){
     double direction = (degrees >= 0) ? 1 : -1;
     double target = abs(degrees) * TICKS_PER_DEGREE;
 
-    cmpc(LEFT_MOTOR);
-    cmpc(RIGHT_MOTOR);
+    cmpc(left);
+    cmpc(right);
 
-    while(abs(get_motor_position_counter(LEFT_MOTOR)) < target)
+    while(abs(gmpc(left)) < target)
     {
-        mav(LEFT_MOTOR, direction * BASE_SPEED);
-        mav(RIGHT_MOTOR, -direction * BASE_SPEED);
+        mav(left, direction * BASE_SPEED);
+        mav(right, -direction * BASE_SPEED);
 
         msleep(10);
     }
 
-    freeze(LEFT_MOTOR);
-    freeze(RIGHT_MOTOR);
+    freeze(left);
+    freeze(right);
 }
 
+void closeClaw(int speed){
+	serbo(lclaw, claw_close_val, speed);
+    serbo(rclaw, claw_close_val, speed);
+	}
 
+void openClaw(int speed){
+	serbo(lclaw, claw_open_val, speed);
+    serbo(rclaw, claw_open_val, speed);
+	}
+
+void openRear(int speed){
+    cmpc(rear);
+    while(gmpc(rear) < rear_open){
+        mav(rear, speed);
+        msleep(1);
+    }
+    freeze(rear);
+}
+
+void closeRear(int speed){
+    cmpc(rear);
+    while(gmpc(rear) > rear_open){
+        mav(rear, -(speed));
+        msleep(1);
+    }
+    freeze(rear);
+}
+void armUp(int speed){
+    cmpc(arm);
+    while(gmpc(arm) < arm_up_val){
+        mav(arm, speed);
+        msleep(1);
+    }
+    freeze(arm);
+}
+
+void armDown(int speed){
+    cmpc(arm);
+    while(gmpc(arm) > arm_down_val){
+        mav(arm, -(speed));
+        msleep(1);
+    }
+    freeze(arm);
+}
+
+void armAboveGroundFromDown(int speed){
+    cmpc(arm);
+    while(gmpc(arm) < arm_above_ground_val){
+        mav(arm, speed);
+        msleep(1);
+    }
+    freeze(arm);
+}
+
+void armAboveGroundFromUp(int speed){
+    cmpc(arm);
+    while(gmpc(arm) < arm_above_ground_val){
+        mav(arm, -(speed));
+    }
+    freeze(arm);
+}
 // SQUARE UP ON LINE
-void square_up_on_line()
-{
-    while(analog(LEFT_SENSOR) < LINE || analog(RIGHT_SENSOR) < LINE)
+void square_up_on_line(){
+    while(analog(lc) < LINE || analog(rc) < LINE)
     {
-        if(analog(LEFT_SENSOR) < LINE && analog(RIGHT_SENSOR) > LINE)
+        if(analog(lc) < LINE && analog(rc) > LINE)
         {
-            mav(RIGHT_MOTOR,-500);
-            mav(LEFT_MOTOR,800);
-            
+            mav(right,500);
+            mav(left,-300);
+
         }
 
-        else if(analog(LEFT_SENSOR) > LINE && analog(RIGHT_SENSOR) < LINE)
+        else if(analog(lc) > LINE && analog(rc) < LINE)
         {
-            mav(RIGHT_MOTOR,800);
-            mav(LEFT_MOTOR,-500);
-            
+            mav(right,-300);
+            mav(left,500);
+
         }
 
-    	else{
-            mav(RIGHT_MOTOR,700);
-            mav(LEFT_MOTOR,700);
-            
+        else{
+            mav(right,500);
+            mav(left,500);
+
         }
 
-       
+
     }
 
-    freeze(LEFT_MOTOR);
-    freeze(RIGHT_MOTOR);
+    freeze(left);
+    freeze(right);
 }
 
 // SQUARE UP ON LINE BACKWARDS
-void square_up_on_line_backwards()
-{
+void square_up_on_line_backwards(){
     // Continue looping until BOTH sensors see the line (value > LINE)
-    while(analog(LEFT_SENSOR) < LINE || analog(RIGHT_SENSOR) < LINE)
+    while(analog(lc) < LINE || analog(rc) < LINE)
     {
         // Right sensor hit the line first, left is still on white
-        if(analog(LEFT_SENSOR) < LINE && analog(RIGHT_SENSOR) > LINE)
+        if(analog(lc) < LINE && analog(rc) > LINE)
         {
-            mav(RIGHT_MOTOR, 200);   // Right side pivots forward
-            mav(LEFT_MOTOR, -400);   // Left side keeps backing up to catch the line
+            mav(right, 200);   // Right side pivots forward
+            mav(left, -400);   // Left side keeps backing up to catch the line
         }
         // Left sensor hit the line first, right is still on white
-        else if(analog(LEFT_SENSOR) > LINE && analog(RIGHT_SENSOR) < LINE)
+        else if(analog(lc) > LINE && analog(rc) < LINE)
         {
-            mav(RIGHT_MOTOR, -400);  // Right side keeps backing up to catch the line
-            mav(LEFT_MOTOR, 200);    // Left side pivots forward
+            mav(right, -400);  // Right side keeps backing up to catch the line
+            mav(left, 200);    // Left side pivots forward
         }
         // Neither sensor sees the line, drive straight backwards
         else 
         {
-            mav(RIGHT_MOTOR, -1000);
-            mav(LEFT_MOTOR, -1000);
+            mav(right, -1000);
+            mav(left, -1000);
         }
     }
 
     // Stop both motors once the line is squared up
-    freeze(LEFT_MOTOR);
-    freeze(RIGHT_MOTOR);
+    freeze(left);
+    freeze(right);
 }
 
 
 // LINE FOLLOW USING ENCODERS (DISTANCE)
-void line_follow_inches(int inches)
-{
+void line_follow_inches(int inches){
     int target = inches * TICKS_PER_INCH;
 
-    cmpc(LEFT_MOTOR);
-    cmpc(RIGHT_MOTOR);
+    cmpc(left);
+    cmpc(right);
 
-    while(abs(get_motor_position_counter(LEFT_MOTOR)) < target)
+    while(abs(gmpc(left)) < target)
     {
-        if(analog(LEFT_SENSOR) < LINE && analog(RIGHT_SENSOR) > LINE)
+        if(analog(lc) < LINE)
         {
-            mav(RIGHT_MOTOR,-700);
-            mav(LEFT_MOTOR,700);
-            
-        }
-
-        else if(analog(LEFT_SENSOR) > LINE && analog(RIGHT_SENSOR) < LINE)
-        {
-            mav(RIGHT_MOTOR,700);
-            mav(LEFT_MOTOR,-700);
-            
-        }
-
-    	else{
-            mav(RIGHT_MOTOR,0.95 * BASE_SPEED);
-            mav(LEFT_MOTOR,0.95 * BASE_SPEED);
-            
-        }
-        msleep(10);
-    }
-
-    freeze(LEFT_MOTOR);
-    freeze(RIGHT_MOTOR);
-}
-
-// MOVE ARM BY DEGREES WITH ENCODERS (positive = raise, negative = lower)
-void move_arm(double degrees)
-{
-    double direction = (degrees >= 0) ? 1 : -1;
-    double target = abs(degrees) * TICKS_PER_DEGREE_ARM;
-
-    cmpc(POM_ARM);
-
-    while(abs(get_motor_position_counter(POM_ARM)) < target)
-    {
-        mav(POM_ARM, direction * 1500);
-        msleep(10);
-    }
-
-    freeze(POM_ARM);
-}
-// OPEN/CLOSE CLAW WITH MOTOR (positive = open, negative = close)
-void move_claw(double speed, double time_ms)
-{
-    mav(POM_ClAW, speed);
-    msleep(time_ms);
-    freeze(POM_ClAW);
-}
-/*
-void move_arm_and_claw(double armspeed, double claw_speed, double time_ms){
-    
-    mav(POM_ARM, armspeed);
-    mav(POM_ClAW, claw_speed);
-    msleep(time_ms);
-    freeze(POM_ClAW);
-    freeze(POM_ARM);
-}
-// DRIVE WHILE ARM
-void drive_while_raising_arm(double inches, double direction, int arm_speed, int arm_time)
-{
-    mav(POM_ARM, arm_speed);
-    driveStraight(inches, direction);
-    msleep(arm_time);
-    freeze(POM_ARM);
-}
-
-// DRIVE WHILE CLAW
-void drive_while_claw(double inches,int direction, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    driveStraight(inches, direction);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// DRIVE WHILE MOVING ARM AND CLAW TOGETHER
-void drive_while_arm_and_claw(double inches, double direction,
-                               int arm_speed, int claw_speed, int time_ms)
-{
-    mav(POM_ARM, arm_speed);
-    mav(POM_ClAW, claw_speed);
-    driveStraight(inches, direction);
-    msleep(time_ms);
-    freeze(POM_ARM);
-    freeze(POM_ClAW);
-}
-
-// TURN WHILE RAISING ARM
-void turn_while_arm(double degrees, int arm_speed, int arm_time)
-{
-    mav(POM_ARM, arm_speed);
-    turnDegrees(degrees);
-    msleep(arm_time);
-    freeze(POM_ARM);
-}
-
-// TURN WHILE OPENING CLAW
-void turn_while_claw(double degrees, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    turnDegrees(degrees);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// TURN WHILE MOVING ARM AND CLAW
-void turn_while_arm_and_claw(double degrees, int arm_speed,
-                              int claw_speed, int time_ms)
-{
-    mav(POM_ARM, arm_speed);
-    mav(POM_ClAW, claw_speed);
-    turnDegrees(degrees);
-    msleep(time_ms);
-    freeze(POM_ARM);
-    freeze(POM_ClAW);
-}
-
-// SQUARE UP WHILE  ARM
-void square_up_while_arm(int arm_speed, int arm_time)
-{
-    mav(POM_ARM, arm_speed);
-    square_up_on_line();
-    msleep(arm_time);
-    freeze(POM_ARM);
-}
-
-// SQUARE UP BACKWARDS WHILE ARM
-void square_up_back_while_arm(int arm_speed, int arm_time)
-{
-    mav(POM_ARM, arm_speed);
-    square_up_on_line_backwards();
-    msleep(arm_time);
-    freeze(POM_ARM);
-}
-
-// SQUARE UP WHILE OPENING CLAW
-void square_up_while_claw(int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    square_up_on_line();
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// SQUARE UP WHILE MOVING ARM AND CLAW
-void square_up_while_arm_and_claw(int arm_speed, int claw_speed, int time_ms)
-{
-    mav(POM_ARM, arm_speed);
-    mav(POM_ClAW, claw_speed);
-    square_up_on_line();
-    msleep(time_ms);
-    freeze(POM_ARM);
-    freeze(POM_ClAW);
-}
-
-// LINE FOLLOW WHILE RAISING ARM
-void line_follow_while_arm(int inches, int arm_speed, int arm_time)
-{
-    mav(POM_ARM, arm_speed);
-    line_follow_inches(inches);
-    msleep(arm_time);
-    freeze(POM_ARM);
-}
-
-// LINE FOLLOW WHILE CLAW
-void line_follow_while_claw(int inches, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    line_follow_inches(inches);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// LINE FOLLOW WHILE MOVING ARM AND CLAW
-void line_follow_while_arm_and_claw(int inches, int arm_speed,
-                                     int claw_speed, int time_ms)
-{
-    mav(POM_ARM, arm_speed);
-    mav(POM_ClAW, claw_speed);
-    line_follow_inches(inches);
-    msleep(time_ms);
-    freeze(POM_ARM);
-    freeze(POM_ClAW);
-}
-
-*/
-// ARM AND CLAW TOGETHER
-void move_arm_and_claw(double arm_degrees, int claw_speed, int claw_time)
-{
-    move_arm(arm_degrees);
-    mav(POM_ClAW, claw_speed);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// DRIVE WHILE ARM
-void drive_while_arm(double inches, double direction, double arm_degrees)
-{
-    move_arm(arm_degrees);
-    driveStraight(inches, direction);
-}
-
-// DRIVE WHILE CLAW
-void drive_while_claw(double inches, int direction, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    driveStraight(inches, direction);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// DRIVE WHILE ARM AND CLAW
-void drive_while_arm_and_claw(double inches, double direction,
-                               double arm_degrees, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    move_arm(arm_degrees);
-    driveStraight(inches, direction);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// TURN WHILE ARM
-void turn_while_arm(double turn_degrees, double arm_degrees)
-{
-    move_arm(arm_degrees);
-    turnDegrees(turn_degrees);
-}
-
-// TURN WHILE CLAW
-void turn_while_claw(double degrees, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    turnDegrees(degrees);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// TURN WHILE ARM AND CLAW
-void turn_while_arm_and_claw(double turn_degrees, double arm_degrees,
-                              int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    move_arm(arm_degrees);
-    turnDegrees(turn_degrees);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-/*// SQUARE UP WHILE ARM
-void square_up_while_arm(double arm_degrees)
-{
-    move_arm(arm_degrees);
-    square_up_on_line();
-    msleep(10);
-}
-
-// SQUARE UP BACKWARDS WHILE ARM
-void square_up_back_while_arm(double arm_degrees)
-{
-    move_arm(arm_degrees);
-    square_up_on_line_backwards();
-}
-*/
-// SQUARE UP WHILE ARM
-void square_up_while_arm(double arm_degrees)
-{
-    double arm_target = abs(arm_degrees) * TICKS_PER_DEGREE_ARM;
-    double arm_dir = (arm_degrees >= 0) ? 1 : -1;
-    cmpc(POM_ARM);
-
-    while(analog(LEFT_SENSOR) < LINE || analog(RIGHT_SENSOR) < LINE ||
-          abs(get_motor_position_counter(POM_ARM)) < arm_target)
-    {
-        // Square up logic
-        if(analog(LEFT_SENSOR) < LINE && analog(RIGHT_SENSOR) > LINE)
-        {
-            mav(RIGHT_MOTOR, -500);
-            mav(LEFT_MOTOR, 800);
-        }
-        else if(analog(LEFT_SENSOR) > LINE && analog(RIGHT_SENSOR) < LINE)
-        {
-            mav(RIGHT_MOTOR, 800);
-            mav(LEFT_MOTOR, -500);
+            mav(right, (0.95 * BASE_SPEED) - 200);
+            mav(left, 0.95 * BASE_SPEED);
         }
         else
         {
-            mav(RIGHT_MOTOR, 700);
-            mav(LEFT_MOTOR, 700);
+            mav(right, 0.95 * BASE_SPEED);
+            mav(left, (0.95 * BASE_SPEED) - 200);
         }
 
-        // Arm logic runs every loop iteration simultaneously
-        if(abs(get_motor_position_counter(POM_ARM)) < arm_target)
-            mav(POM_ARM, arm_dir * 1500);
-        else
-            freeze(POM_ARM);
-
+        printf("Left analog value: %d\n", analog(lc));
         msleep(10);
     }
 
-    freeze(LEFT_MOTOR);
-    freeze(RIGHT_MOTOR);
-    freeze(POM_ARM);
+    freeze(left);
+    freeze(right);
 }
-
-// SQUARE UP BACKWARDS WHILE ARM
-void square_up_back_while_arm(double arm_degrees)
-{
-    double arm_target = abs(arm_degrees) * TICKS_PER_DEGREE_ARM;
-    double arm_dir = (arm_degrees >= 0) ? 1 : -1;
-    cmpc(POM_ARM);
-
-    while(analog(LEFT_SENSOR) < LINE || analog(RIGHT_SENSOR) < LINE ||
-          abs(get_motor_position_counter(POM_ARM)) < arm_target)
+void sqol(){
+    while(analog(lc) < LINE || analog(rc) < LINE)
     {
-        if(analog(LEFT_SENSOR) < LINE && analog(RIGHT_SENSOR) > LINE)
+        if(analog(lc) < LINE && analog(rc) > LINE)
         {
-            mav(RIGHT_MOTOR, 200);
-            mav(LEFT_MOTOR, -400);
-        }
-        else if(analog(LEFT_SENSOR) > LINE && analog(RIGHT_SENSOR) < LINE)
-        {
-            mav(RIGHT_MOTOR, -400);
-            mav(LEFT_MOTOR, 200);
-        }
-        else
-        {
-            mav(RIGHT_MOTOR, -1000);
-            mav(LEFT_MOTOR, -1000);
+            mav(right,800);
+            mav(left,-600);
+
         }
 
-        if(abs(get_motor_position_counter(POM_ARM)) < arm_target)
-            mav(POM_ARM, arm_dir * 1500);
-        else
-            freeze(POM_ARM);
+        else if(analog(lc) > LINE && analog(rc) < LINE)
+        {
+            mav(right,-600);
+            mav(left,800);
 
-        msleep(10);
+        }
+
+        else{
+            mav(right,800);
+            mav(left,800);
+
+        }
+
+
     }
 
-    freeze(LEFT_MOTOR);
-    freeze(RIGHT_MOTOR);
-    freeze(POM_ARM);
+    freeze(left);
+    freeze(right);
 }
-
-// SQUARE UP WHILE CLAW
-void square_up_while_claw(int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    square_up_on_line();
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// SQUARE UP WHILE ARM AND CLAW
-void square_up_while_arm_and_claw(double arm_degrees, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    move_arm(arm_degrees);
-    square_up_on_line();
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// LINE FOLLOW WHILE ARM
-void line_follow_while_arm(int inches, double arm_degrees)
-{
-    move_arm(arm_degrees);
-    line_follow_inches(inches);
-}
-
-// LINE FOLLOW WHILE CLAW
-void line_follow_while_claw(int inches, int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    line_follow_inches(inches);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// LINE FOLLOW WHILE ARM AND CLAW
-void line_follow_while_arm_and_claw(int inches, double arm_degrees,
-                                     int claw_speed, int claw_time)
-{
-    mav(POM_ClAW, claw_speed);
-    move_arm(arm_degrees);
-    line_follow_inches(inches);
-    msleep(claw_time);
-    freeze(POM_ClAW);
-}
-
-// OPEN THE CLAW SERVO
-void open_claw_servo()
-{
-    move_servo_slow(CLAW_SERVO, CLAW_OPEN);
-}
-
-// CLOSE THE CLAW SERVO
-void close_claw_servo()
-{
-    move_servo_slow(CLAW_SERVO, CLAW_CLOSED);
-}
-
-// SPIN TO OPEN DOOR
-void open_door()
-{
-    move_servo_slow(SPINNER_SERVO, SPINNER_EXTENDED);
-    msleep(500);
-    move_servo_slow(SPINNER_SERVO, SPINNER_REST);
-}
-
-// GRAB AND RELEASE
-void grab_guy()
-{
-    close_claw_servo();
-    msleep(300);
-}
-
-void release_guy()
-{
-    open_claw_servo();
-    msleep(300);
-}
-
-
 int main()
 {
-    printf("Starting\n");
+    printf("Starting \n");
     enable_servos();
-
+    
     // main run
-    
-    initialize_servos();
-    msleep(1000);
-    square_up_while_arm(100);
-    open_claw_servo();
-    move_claw(1500,1200);
-    msleep(100);
-    turnDegrees(14);
-    msleep(500);
-    move_arm(39); 
-    msleep(100);
-    move_claw(-1500,1200);
-    move_arm(-35);
-    driveStraight(4,-1);
-    msleep(100);
-    turnDegrees(-15.7);
-    msleep(100);
+    mav(left,-1700);
+    msleep(2000);
+    driveTime(200,200);
     square_up_on_line();
-    msleep(100);
-    turnDegrees(29.5);
-    msleep(300);
-    move_arm_and_claw(35,1500,1200);
-    move_claw(-1500,1200);
-    move_arm(-35);
-    msleep(100);
-    
-    driveStraight(2,-1);
-    msleep(100);
-    turnDegrees(-29.5);
-    msleep(100);
+    driveTime(500,5000);
+    driveTime(-500, 8200);
+	armDown(arm_slow);
+    driveTime(1000, 5000);
+    driveTime(-800,1500);
+    closeClaw(fast);
+	armAboveGroundFromDown(arm_std);
+    msleep(2000);
     square_up_on_line();
-    msleep(100);
-    driveStraight(5.1,-1);
-    msleep(100);
-    turnDegrees(89.4);
-    msleep(100);
-    driveStraight(3,1);
-    msleep(200);
-    driveStraight(8.9,-1);
-    msleep(100);
-    move_arm_and_claw(35,1500,1000);
-    msleep(100);
-    move_claw(-1500,1000);
-    msleep(100);
-    move_arm(-35);
-    driveStraight(4,-1);
-    msleep(100);
-    turnDegrees(31);
-    msleep(100);
-    move_arm_and_claw(35,1500,1000);
-    msleep(100);
-    move_claw(-1500,1000);
-    move_arm(-35);
-    msleep(100);
-    driveStraight(4.2,-1);
-    msleep(100);
-    turnDegrees(40);
-    msleep(100);
-    driveStraight(6,1.3);
-    msleep(100);
-    move_arm_and_claw(35,1500,1200);
-    msleep(100);
-    driveStraight(21,-1);
-    msleep(100);
-    move_claw(-1500,1000);
-    msleep(100);
-    square_up_back_while_arm(-100);
-    move_arm(-50);
-    msleep(100);
-    driveStraight(5.8,1);
-    msleep(100);
+    driveTime(vmax,2500);
     turnDegrees(90);
-    
-    msleep(200);
-    driveStraight(2,1);
-    msleep(100);
+    square_up_on_line();
+    driveTime(800,1500);
+    square_up_on_line();
+    turnDegrees(90);
+	sqol();
+    driveTime(800, 2000);
+	sqol();
+    driveTime(800, 2000);
+    turnDegrees(-90);
     square_up_on_line_backwards();
-    /*
-    mav(2,1500);
-    msleep(500);
-    ao();
-    msleep(100);
-    driveStraight(10.8,1);
-    //move cube
-    //open door
-    mav(2,-1500);
-    msleep(250);
-    ao();
-    msleep(100);
-    mav(2,1500);
-    msleep(750);
-    //pick up botnigga
-    
-    */
-    
- 
-  
-    
-    
-    
-
+    openRear(arm_fast);
+    driveTime(-400,2200);
+    closeRear(arm_std);
+	sqol();
+	driveTime(800, 1500);
+	turnDegrees(180);
+    clawOpen(std);
+    square_up_on_line_backwards();
+    turnDegrees(-90);
+	sqol();
+    driveTime(800,1000);
+    sqol();
+    driveTime(800,1000);
+    sqol();
+    turnDegrees(90);
+	square_up_on_line();
+	drive
+	armUp(arm_slow);
+    driveTime(700,4000);
+    turnDegrees(-90);
+    square_up_on_line();
+    driveTime(1000,2000);
+    //line_follow_inches
     
 
     ao();
