@@ -1,0 +1,356 @@
+#include <kipr/wombat.h>
+#include <stdlib.h>
+
+// MOTORS
+#define left 1
+#define right 3
+#define vmax 1500
+// SERVO SETTINGS
+#define arm 2 //Arm is a motor, keep this in mind
+#define lclaw 0
+#define rclaw 3
+#define rear 0//this is also a motor(positive dir opens, neg closes)
+
+#define arm_down_val 1750
+#define arm_up_val 450
+#define arm_above_ground_val 320
+
+#define claw_open_val 1006
+#define claw_close_val 1369
+
+#define rear_open 300
+#define rear_close -300
+
+#define SERVO_STEP 10
+#define fast 5
+#define std 15
+#define slow 20
+
+#define arm_fast 1500
+#define arm_std 400
+#define arm_slow 300
+// SENSORS
+#define lc 3
+#define rc 2
+
+// CONSTANTS
+#define BASE_SPEED 800
+#define LINE 1000
+
+#define TICKS_PER_INCH 219
+#define TICKS_PER_DEGREE 12.1
+
+
+// UNIVERSAL SERVO
+void serbo(int port, int target, int SERVO_DELAY)
+{
+    int pos = get_servo_position(port);
+
+    if(pos < target)
+    {
+        while(pos < target)
+        {
+            pos += SERVO_STEP;
+            set_servo_position(port, pos);
+            msleep(SERVO_DELAY);
+        }
+    }
+    else
+    {
+        while(pos > target)
+        {
+            pos -= SERVO_STEP;
+            set_servo_position(port, pos);
+            msleep(SERVO_DELAY);
+        }
+    }
+
+    set_servo_position(port, target);
+    msleep(200);
+}
+
+// DRIVE STRAIGHT WITH ENCODERS
+void driveStraight(double inches, double direction){
+    double target = inches * TICKS_PER_INCH;
+
+    cmpc(left);
+    cmpc(right);
+
+    while(abs(get_motor_position_counter(left)) < target ||
+          abs(gmpc(right)) < target)
+    {
+        mav(left, direction * BASE_SPEED);
+        mav(right, direction * BASE_SPEED);
+
+        msleep(10);
+    }
+
+    freeze(left);
+    freeze(right);
+}
+
+void driveTime(double speed, double duration){
+    mav(left, speed);
+    mav(right, speed);
+    msleep(duration);
+    freeze(left);
+    freeze(right);
+}
+
+// TURN WITH ENCODERS
+void turnDegrees(double degrees){
+    double direction = (degrees >= 0) ? 1 : -1;
+    double target = abs(degrees) * TICKS_PER_DEGREE;
+
+    cmpc(left);
+    cmpc(right);
+
+    while(abs(gmpc(left)) < target)
+    {
+        mav(left, direction * BASE_SPEED);
+        mav(right, -direction * BASE_SPEED);
+
+        msleep(10);
+    }
+
+    freeze(left);
+    freeze(right);
+}
+
+void closeClaw(int speed){
+	serbo(lclaw, claw_close_val, speed);
+    serbo(rclaw, claw_close_val, speed);
+	}
+
+void openClaw(int speed){
+	serbo(lclaw, claw_open_val, speed);
+    serbo(rclaw, claw_open_val, speed);
+	}
+
+void openRear(int speed){
+    cmpc(rear);
+    while(gmpc(rear) < rear_open){
+        mav(rear, speed);
+        msleep(1);
+    }
+    freeze(rear);
+}
+
+void closeRear(int speed){
+    cmpc(rear);
+    while(gmpc(rear) > rear_open){
+        mav(rear, -(speed));
+        msleep(1);
+    }
+    freeze(rear);
+}
+void armUp(int speed){
+    cmpc(arm);
+    while(gmpc(arm) < arm_up_val){
+        mav(arm, speed);
+        msleep(1);
+    }
+    freeze(arm);
+}
+
+void armDown(int speed){
+    cmpc(arm);
+    while(gmpc(arm) > arm_down_val){
+        mav(arm, -(speed));
+        msleep(1);
+    }
+    freeze(arm);
+}
+
+void armAboveGroundFromDown(int speed){
+    cmpc(arm);
+    while(gmpc(arm) < arm_above_ground_val){
+        mav(arm, speed);
+        msleep(1);
+    }
+    freeze(arm);
+}
+
+void armAboveGroundFromUp(int speed){
+    cmpc(arm);
+    while(gmpc(arm) < arm_above_ground_val){
+        mav(arm, -(speed));
+    }
+    freeze(arm);
+}
+// SQUARE UP ON LINE
+void square_up_on_line(){
+    while(analog(lc) < LINE || analog(rc) < LINE)
+    {
+        if(analog(lc) < LINE && analog(rc) > LINE)
+        {
+            mav(right,500);
+            mav(left,-300);
+
+        }
+
+        else if(analog(lc) > LINE && analog(rc) < LINE)
+        {
+            mav(right,-300);
+            mav(left,500);
+
+        }
+
+        else{
+            mav(right,500);
+            mav(left,500);
+
+        }
+
+
+    }
+
+    freeze(left);
+    freeze(right);
+}
+
+// SQUARE UP ON LINE BACKWARDS
+void square_up_on_line_backwards(){
+    // Continue looping until BOTH sensors see the line (value > LINE)
+    while(analog(lc) < LINE || analog(rc) < LINE)
+    {
+        // Right sensor hit the line first, left is still on white
+        if(analog(lc) < LINE && analog(rc) > LINE)
+        {
+            mav(right, 200);   // Right side pivots forward
+            mav(left, -400);   // Left side keeps backing up to catch the line
+        }
+        // Left sensor hit the line first, right is still on white
+        else if(analog(lc) > LINE && analog(rc) < LINE)
+        {
+            mav(right, -400);  // Right side keeps backing up to catch the line
+            mav(left, 200);    // Left side pivots forward
+        }
+        // Neither sensor sees the line, drive straight backwards
+        else 
+        {
+            mav(right, -1000);
+            mav(left, -1000);
+        }
+    }
+
+    // Stop both motors once the line is squared up
+    freeze(left);
+    freeze(right);
+}
+
+
+// LINE FOLLOW USING ENCODERS (DISTANCE)
+void line_follow_inches(int inches){
+    int target = inches * TICKS_PER_INCH;
+
+    cmpc(left);
+    cmpc(right);
+
+    while(abs(gmpc(left)) < target)
+    {
+        if(analog(lc) < LINE)
+        {
+            mav(right, (0.95 * BASE_SPEED) - 200);
+            mav(left, 0.95 * BASE_SPEED);
+        }
+        else
+        {
+            mav(right, 0.95 * BASE_SPEED);
+            mav(left, (0.95 * BASE_SPEED) - 200);
+        }
+
+        printf("Left analog value: %d\n", analog(lc));
+        msleep(10);
+    }
+
+    freeze(left);
+    freeze(right);
+}
+void sqol(){
+    while(analog(lc) < LINE || analog(rc) < LINE)
+    {
+        if(analog(lc) < LINE && analog(rc) > LINE)
+        {
+            mav(right,800);
+            mav(left,-600);
+
+        }
+
+        else if(analog(lc) > LINE && analog(rc) < LINE)
+        {
+            mav(right,-600);
+            mav(left,800);
+
+        }
+
+        else{
+            mav(right,800);
+            mav(left,800);
+
+        }
+
+
+    }
+
+    freeze(left);
+    freeze(right);
+}
+int main()
+{
+    printf("Starting \n");
+    enable_servos();
+    
+    // main run
+    mav(left,-1700);
+    msleep(2000);
+    driveTime(200,200);
+    square_up_on_line();
+    driveTime(500,5000);
+    driveTime(-500, 8200);
+	armDown(arm_slow);
+    driveTime(1000, 5000);
+    driveTime(-800,1500);
+    closeClaw(fast);
+	armAboveGroundFromDown(arm_std);
+    msleep(2000);
+    square_up_on_line();
+    driveTime(vmax,2500);
+    turnDegrees(90);
+    square_up_on_line();
+    driveTime(800,1500);
+    square_up_on_line();
+    turnDegrees(90);
+	sqol();
+    driveTime(800, 2000);
+	sqol();
+    driveTime(800, 2000);
+    turnDegrees(-90);
+    square_up_on_line_backwards();
+    openRear(arm_fast);
+    driveTime(-400,2200);
+    closeRear(arm_std);
+	sqol();
+	driveTime(800, 1500);
+	turnDegrees(180);
+    clawOpen(std);
+    square_up_on_line_backwards();
+    turnDegrees(-90);
+	sqol();
+    driveTime(800,1000);
+    sqol();
+    driveTime(800,1000);
+    sqol();
+    turnDegrees(90);
+	square_up_on_line();
+	drive
+	armUp(arm_slow);
+    driveTime(700,4000);
+    turnDegrees(-90);
+    square_up_on_line();
+    driveTime(1000,2000);
+    //line_follow_inches
+    
+
+    ao();
+}
