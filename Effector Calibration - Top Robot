@@ -1,0 +1,117 @@
+#include <kipr/wombat.h>
+#include <stdlib.h>
+
+// MOTORS
+#define left 1
+#define right 3
+#define vmax 1500
+// SERVO SETTINGS
+#define arm 0 
+#define lclaw 0
+#define rclaw 2
+#define rear 1
+
+#define arm_down_val 1536
+#define arm_up_val 0
+#define arm_above_ground_val 1080
+
+#define lclaw_open_val -200
+#define lclaw_close_val 200
+
+#define rclaw_open_val -200
+#define rclaw_close_val 200
+
+#define rear_open 1230
+#define rear_close 650
+
+#define SERVO_STEP 10
+#define fast 5
+#define std 15
+#define slow 20
+
+#define claw_fast 1500
+#define claw_std 400
+#define claw_slow 300
+// SENSORS
+#define lc 3
+#define rc 2
+
+// CONSTANTS
+#define BASE_SPEED 800
+#define LINE 2500
+
+#define TICKS_PER_INCH 219
+#define TICKS_PER_DEGREE 12.1
+
+int main()
+{	
+    void serbo(int port, int target, int SERVO_DELAY)
+{
+    int pos = get_servo_position(port);
+
+    if(pos < target)
+    {
+        while(pos < target)
+        {
+            pos += SERVO_STEP;
+            set_servo_position(port, pos);
+            msleep(SERVO_DELAY);
+        }
+    }
+    else
+    {
+        while(pos > target)
+        {
+            pos -= SERVO_STEP;
+            set_servo_position(port, pos);
+            msleep(SERVO_DELAY);
+        }
+    }
+
+    set_servo_position(port, target);
+    msleep(200);
+}
+
+
+void openClaw(int speed){
+	cmpc(lclaw);
+    cmpc(rclaw);
+    while(gmpc(lclaw) > lclaw_open_val && gmpc(rclaw) > rclaw_open_val  ){
+        mav(lclaw, -(speed));
+        mav(rclaw, -(speed));
+        msleep(1);
+    }
+    freeze(lclaw);
+    freeze(rclaw);
+	}
+	
+
+
+void openRear(int speed){
+    serbo(rear, rear_open, speed);
+
+}
+void armUp(int speed){
+    serbo(arm, arm_up_val, speed);
+}
+
+void claw_squareUp(){
+    mav(lclaw, 500);
+    mav(rclaw, 500);
+    msleep(1500);
+    ao();
+    cmpc(lclaw);
+    cmpc(rclaw);
+}
+
+
+
+	enable_servos();
+	
+    
+	armUp(slow);
+    claw_squareUp();
+	openClaw(claw_std);
+	openRear(std);
+    return 0;
+}
