@@ -6,38 +6,41 @@
 #define right 3
 #define vmax 1500
 // SERVO SETTINGS
-#define arm 2 //Arm is a motor, keep this in mind
+#define arm 0 
 #define lclaw 0
-#define rclaw 3
-#define rear 0//this is also a motor(positive dir opens, neg closes)
+#define rclaw 2
+#define rear 1
 
-#define arm_down_val 1750
-#define arm_up_val 450
-#define arm_above_ground_val 320
+#define arm_down_val 1536
+#define arm_up_val 0
+#define arm_above_ground_val 1080
 
-#define claw_open_val 1006
-#define claw_close_val 1369
+#define lclaw_open_val -270
+#define lclaw_close_val 270
 
-#define rear_open 300
-#define rear_close -300
+#define rclaw_open_val -270
+#define rclaw_close_val 270
+
+#define rear_open 1230
+#define rear_close 650
 
 #define SERVO_STEP 10
 #define fast 5
 #define std 15
 #define slow 20
 
-#define arm_fast 1500
-#define arm_std 400
-#define arm_slow 300
+#define claw_fast 1500
+#define claw_std 400
+#define claw_slow 300
 // SENSORS
 #define lc 3
 #define rc 2
 
 // CONSTANTS
 #define BASE_SPEED 800
-#define LINE 1000
+#define LINE 2200
 
-#define TICKS_PER_INCH 219
+#define TICKS_PER_INCH 285
 #define TICKS_PER_DEGREE 12.1
 
 
@@ -118,97 +121,81 @@ void turnDegrees(double degrees){
 }
 
 void closeClaw(int speed){
-	serbo(lclaw, claw_close_val, speed);
-    serbo(rclaw, claw_close_val, speed);
+		cmpc(lclaw);
+    cmpc(rclaw);
+    while(gmpc(lclaw) < lclaw_close_val && gmpc(rclaw) < rclaw_close_val  ){
+        mav(lclaw, speed);
+        mav(rclaw, speed);
+        msleep(1);
+    }
+    freeze(lclaw);
+    freeze(rclaw);
 	}
 
 void openClaw(int speed){
-	serbo(lclaw, claw_open_val, speed);
-    serbo(rclaw, claw_open_val, speed);
-	}
-
-void openRear(int speed){
-    cmpc(rear);
-    while(gmpc(rear) < rear_open){
-        mav(rear, speed);
+	cmpc(lclaw);
+    cmpc(rclaw);
+    while(gmpc(lclaw) > lclaw_open_val && gmpc(rclaw) > rclaw_open_val  ){
+        mav(lclaw, -(speed));
+        mav(rclaw, -(speed));
         msleep(1);
     }
-    freeze(rear);
+    freeze(lclaw);
+    freeze(rclaw);
+	}
+	
+
+void openRear(int speed){
+    serbo(rear, rear_open, speed);
 }
 
 void closeRear(int speed){
-    cmpc(rear);
-    while(gmpc(rear) > rear_open){
-        mav(rear, -(speed));
-        msleep(1);
-    }
-    freeze(rear);
+    serbo(rear, rear_close, speed);
+
 }
 void armUp(int speed){
-    cmpc(arm);
-    while(gmpc(arm) < arm_up_val){
-        mav(arm, speed);
-        msleep(1);
-    }
-    freeze(arm);
+    serbo(arm, arm_up_val, speed);
 }
 
 void armDown(int speed){
-    cmpc(arm);
-    while(gmpc(arm) > arm_down_val){
-        mav(arm, -(speed));
-        msleep(1);
-    }
-    freeze(arm);
+    serbo(arm, arm_down_val, speed);
 }
 
-void armAboveGroundFromDown(int speed){
-    cmpc(arm);
-    while(gmpc(arm) < arm_above_ground_val){
-        mav(arm, speed);
-        msleep(1);
-    }
-    freeze(arm);
+void armAboveGround(int speed){
+    serbo(arm, arm_above_ground_val, speed);
 }
 
-void armAboveGroundFromUp(int speed){
-    cmpc(arm);
-    while(gmpc(arm) < arm_above_ground_val){
-        mav(arm, -(speed));
-    }
-    freeze(arm);
-}
 // SQUARE UP ON LINE
-void square_up_on_line(){
+void square_up_on_line()
+{
     while(analog(lc) < LINE || analog(rc) < LINE)
     {
         if(analog(lc) < LINE && analog(rc) > LINE)
         {
-            mav(right,500);
-            mav(left,-300);
-
+            mav(right,-500);
+            mav(left,800);
+            
         }
 
         else if(analog(lc) > LINE && analog(rc) < LINE)
         {
-            mav(right,-300);
-            mav(left,500);
-
+            mav(right,800);
+            mav(left,-500);
+            
         }
 
-        else{
-            mav(right,500);
-            mav(left,500);
-
+    	else{
+            mav(right,700);
+            mav(left,700);
+            
         }
 
-
+       
     }
 
     freeze(left);
     freeze(right);
 }
-
 // SQUARE UP ON LINE BACKWARDS
 void square_up_on_line_backwards(){
     // Continue looping until BOTH sensors see the line (value > LINE)
@@ -241,7 +228,8 @@ void square_up_on_line_backwards(){
 
 
 // LINE FOLLOW USING ENCODERS (DISTANCE)
-void line_follow_inches(int inches){
+void line_follow_inches(int inches)
+{
     int target = inches * TICKS_PER_INCH;
 
     cmpc(left);
@@ -249,18 +237,25 @@ void line_follow_inches(int inches){
 
     while(abs(gmpc(left)) < target)
     {
-        if(analog(lc) < LINE)
+        if(analog(lc) < LINE && analog(rc) > LINE)
         {
-            mav(right, (0.95 * BASE_SPEED) - 200);
-            mav(left, 0.95 * BASE_SPEED);
-        }
-        else
-        {
-            mav(right, 0.95 * BASE_SPEED);
-            mav(left, (0.95 * BASE_SPEED) - 200);
+            mav(right,-700);
+            mav(left,700);
+            
         }
 
-        printf("Left analog value: %d\n", analog(lc));
+        else if(analog(lc) > LINE && analog(rc) < LINE)
+        {
+            mav(right,700);
+            mav(left,-700);
+            
+        }
+
+    	else{
+            mav(right,0.95 * BASE_SPEED);
+            mav(left,0.95 * BASE_SPEED);
+            
+        }
         msleep(10);
     }
 
@@ -272,15 +267,16 @@ void sqol(){
     {
         if(analog(lc) < LINE && analog(rc) > LINE)
         {
-            mav(right,800);
-            mav(left,-600);
+            mav(left,800);
+            mav(right,-600);
+            printf("Left sensor value: %d  Right sensor value: %d\n", lc, rc);
 
         }
 
         else if(analog(lc) > LINE && analog(rc) < LINE)
         {
-            mav(right,-600);
-            mav(left,800);
+            mav(left,-600);
+            mav(right,800);
 
         }
 
@@ -289,7 +285,7 @@ void sqol(){
             mav(left,800);
 
         }
-
+		 
 
     }
 
@@ -301,19 +297,24 @@ int main()
     printf("Starting \n");
     enable_servos();
     
+	
     // main run
-    mav(left,-1700);
-    msleep(2000);
-    driveTime(200,200);
+	mav(left, -800);
+    mav(right, 550);
+    msleep(1200);
+    mav(right, 0);
+    msleep(1800);
     square_up_on_line();
-    driveTime(500,5000);
-    driveTime(-500, 8200);
-	armDown(arm_slow);
-    driveTime(1000, 5000);
-    driveTime(-800,1500);
-    closeClaw(fast);
-	armAboveGroundFromDown(arm_std);
+    driveTime(300,4500);
+	driveTime(-300,6500);
+	armDown(slow);
+    					//driveTime(1000, 5000); || replace line follow if necessary
+    driveTime(BASE_SPEED, 6500);
+
+    closeClaw(claw_fast);
+	armUp(slow);
     msleep(2000);
+    driveTime(500,5500);
     square_up_on_line();
     driveTime(vmax,2500);
     turnDegrees(90);
@@ -327,13 +328,13 @@ int main()
     driveTime(800, 2000);
     turnDegrees(-90);
     square_up_on_line_backwards();
-    openRear(arm_fast);
+    openRear(fast);
     driveTime(-400,2200);
-    closeRear(arm_std);
+    closeRear(std);
 	sqol();
 	driveTime(800, 1500);
 	turnDegrees(180);
-    clawOpen(std);
+    openClaw(claw_std);
     square_up_on_line_backwards();
     turnDegrees(-90);
 	sqol();
@@ -343,8 +344,8 @@ int main()
     sqol();
     turnDegrees(90);
 	square_up_on_line();
-	drive
-	armUp(arm_slow);
+	//drive
+	armUp(slow);
     driveTime(700,4000);
     turnDegrees(-90);
     square_up_on_line();
